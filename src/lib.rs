@@ -1,5 +1,7 @@
 use directories::UserDirs;
 use rusqlite::Connection;
+use serde::Deserialize;
+use serde_json::Value;
 use std::{error::Error, path::PathBuf};
 
 pub fn get_database_path(input: &Option<PathBuf>) -> Result<Box<PathBuf>, String> {
@@ -9,14 +11,14 @@ pub fn get_database_path(input: &Option<PathBuf>) -> Result<Box<PathBuf>, String
             if let Some(user_dirs) = UserDirs::new() {
                 user_dirs.home_dir().join("Zotero").join("zotero.sqlite")
             } else {
-                return Err("Could not get user directory location".into());
+                return Err("could not get user directory location".into());
             }
         }
     };
 
     if !path_buf.exists() {
         return Err(format!(
-            "The path to database file does not exist: {:?}",
+            "the path to database file does not exist: {:?}",
             path_buf
         ));
     }
@@ -29,6 +31,46 @@ pub fn count_items(conn: &Connection) -> Result<usize, Box<dyn Error>> {
     let rows = stmt.query_map([], |_| Ok(()))?;
 
     Ok(rows.count())
+}
+
+#[derive(Deserialize)]
+struct BibtexItem {
+    #[serde(rename = "citekey")]
+    pub citation_key: String,
+    #[serde(rename = "pinned")]
+    pub _pinned: bool,
+    #[serde(rename = "itemID")]
+    pub item_id: i64,
+    #[serde(rename = "libraryID")]
+    pub _library_id: i64,
+    #[serde(rename = "itemKey")]
+    pub _item_key: String,
+}
+
+fn get_item_id(bibtex_conn: &Connection, citation_key: &str) -> Result<i64, Box<dyn Error>> {
+    let mut stmt = bibtex_conn.prepare(
+        "
+        SELECT 'better-bibtex'.data
+        FROM 'better-bibtex'
+        WHERE 'better-bibtex'.name = 'better-bibtex.citekey';",
+    )?;
+    let row: String = stmt.query_row([], |r| r.get(0))?;
+    let root: Value = serde_json::from_str(&row)?;
+    match &root["data"] {
+        Value::Array(data) => {
+            for datum in data {
+                let item: BibtexItem = serde_json::from_str(&serde_json::ser::to_string(&datum)?)?;
+                if item.citation_key == citation_key {
+                    return Ok(item.item_id);
+                }
+            }
+        }
+        _ => Err("didn't find an array in the 'data' key")?,
+    }
+    Err(format!(
+        "didn't find any item with citation key '{}'",
+        citation_key
+    ))?
 }
 
 fn get_creators(conn: &Connection, item_id: i64) -> Result<Vec<(String, String)>, Box<dyn Error>> {
@@ -63,7 +105,7 @@ fn get_field(conn: &Connection, item_id: i64, field_name: &str) -> Result<String
     Ok(row)
 }
 
-// Make sure to follow cases in ../tests/mock.sql when writing tests
+// Make sure to follow cases in ../tests/mock when writing tests
 #[cfg(test)]
 mod tests {
     use rusqlite::Batch;
@@ -72,7 +114,7 @@ mod tests {
 
     fn setup_database() -> Result<Connection, Box<dyn Error>> {
         let conn = Connection::open_in_memory()?;
-        static SQL_INIT: &'static str = include_str!("../tests/mock.sql");
+        static SQL_INIT: &'static str = include_str!("../tests/mock/zotero.sql");
         let mut batch = Batch::new(&conn, SQL_INIT);
         while let Some(mut stmt) = batch.next()? {
             stmt.execute([])?;
@@ -81,10 +123,38 @@ mod tests {
         return Ok(conn);
     }
 
+    fn setup_bibtex_database() -> Result<Connection, Box<dyn Error>> {
+        let conn = Connection::open_in_memory()?;
+        conn.execute(
+            "
+            CREATE TABLE 'better-bibtex' (
+                name TEXT PRIMARY KEY NOT NULL,
+                data TEXT NOT NULL
+            )",
+            [],
+        )?;
+        static CITEKEY: &'static str = include_str!("../tests/mock/better-bibtex_citekey.json");
+        let rows = conn.execute(
+            "INSERT INTO 'better-bibtex' VALUES ('better-bibtex.citekey', ?)",
+            [CITEKEY],
+        )?;
+
+        Ok(conn)
+    }
+
     #[test]
     fn item_count() {
         let conn = setup_database().unwrap();
         assert_eq!(1, count_items(&conn).unwrap());
+    }
+
+    #[test]
+    fn mock_item_id() {
+        let bibtex_conn = setup_bibtex_database().unwrap();
+        assert_eq!(
+            1,
+            get_item_id(&bibtex_conn, "kowalskiSampleTitle2022").unwrap()
+        );
     }
 
     #[test]

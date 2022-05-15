@@ -1,0 +1,19 @@
+{
+    "name": "citekey",
+    "data": [
+        {
+            "citekey": "kowalskiSampleTitle2022",
+            "pinned": false,
+            "itemID": 1,
+            "libraryID": 1,
+            "itemKey": "M4MVXZ7Y",
+            "meta": {
+                "revision": 1,
+                "created": 1652651027123,
+                "version": 0,
+                "updated": 1652651027456
+            },
+            "$loki": 1
+        }
+    ]
+}
