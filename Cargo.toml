@@ -9,3 +9,6 @@ description = "Give details of citation from local Zotero database"
 
 [dependencies]
 clap = { version = "3.1.18", features = ["derive"] }
+directories = "4.0"
+exitcode = "1.1.2"
+rusqlite = { version = "0.27.0", features = ["bundled"] }
