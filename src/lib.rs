@@ -9,16 +9,22 @@ pub fn get_database_path(input: &Option<PathBuf>) -> Result<Box<PathBuf>, String
         Some(path) => path.to_owned(),
         None => {
             if let Some(user_dirs) = UserDirs::new() {
-                user_dirs.home_dir().join("Zotero").join("zotero.sqlite")
+                user_dirs.home_dir().join("Zotero")
             } else {
                 return Err("could not get user directory location".into());
             }
         }
     };
 
-    if !path_buf.exists() {
+    if !path_buf.join("zotero.sqlite").exists() {
         return Err(format!(
-            "the path to database file does not exist: {:?}",
+            "the Zotero database file not found at: {:?}",
+            path_buf
+        ));
+    }
+    if !path_buf.join("better-bibtex.sqlite").exists() {
+        return Err(format!(
+            "the Better BibTeX database file not found at: {:?}",
             path_buf
         ));
     }
@@ -47,7 +53,7 @@ struct BibtexItem {
     pub _item_key: String,
 }
 
-fn get_item_id(bibtex_conn: &Connection, citation_key: &str) -> Result<i64, Box<dyn Error>> {
+pub fn get_item_id(bibtex_conn: &Connection, citation_key: &str) -> Result<i64, Box<dyn Error>> {
     let mut stmt = bibtex_conn.prepare(
         "
         SELECT 'better-bibtex'.data
@@ -73,7 +79,10 @@ fn get_item_id(bibtex_conn: &Connection, citation_key: &str) -> Result<i64, Box<
     ))?
 }
 
-fn get_creators(conn: &Connection, item_id: i64) -> Result<Vec<(String, String)>, Box<dyn Error>> {
+pub fn get_creators(
+    conn: &Connection,
+    item_id: i64,
+) -> Result<Vec<(String, String)>, Box<dyn Error>> {
     let mut stmt = conn.prepare(
         "
         SELECT creators.firstName, creators.lastName
@@ -92,7 +101,11 @@ fn get_creators(conn: &Connection, item_id: i64) -> Result<Vec<(String, String)>
     Ok(creators)
 }
 
-fn get_field(conn: &Connection, item_id: i64, field_name: &str) -> Result<String, Box<dyn Error>> {
+pub fn get_field(
+    conn: &Connection,
+    item_id: i64,
+    field_name: &str,
+) -> Result<String, Box<dyn Error>> {
     let mut stmt = conn.prepare(
         "
         SELECT itemDataValues.value
@@ -134,7 +147,7 @@ mod tests {
             [],
         )?;
         static CITEKEY: &'static str = include_str!("../tests/mock/better-bibtex_citekey.json");
-        let rows = conn.execute(
+        conn.execute(
             "INSERT INTO 'better-bibtex' VALUES ('better-bibtex.citekey', ?)",
             [CITEKEY],
         )?;

@@ -3,7 +3,7 @@ use rusqlite::{Connection, OpenFlags};
 use std::path::PathBuf;
 use std::process::exit;
 
-use gibcite::{count_items, get_database_path};
+use gibcite::{count_items, get_database_path, get_field, get_item_id};
 
 #[derive(Debug, Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -33,18 +33,36 @@ fn main() {
         println!("{:?}", database_path);
     }
 
-    let conn =
-        Connection::open_with_flags(database_path.as_ref(), OpenFlags::SQLITE_OPEN_READ_ONLY)
-            .unwrap_or_else(|err| {
-                eprintln!("Could not open Zotero database: {}", err);
-                exit(exitcode::UNAVAILABLE);
-            });
+    let conn = Connection::open_with_flags(
+        database_path.join("zotero.sqlite"),
+        OpenFlags::SQLITE_OPEN_READ_ONLY,
+    )
+    .unwrap_or_else(|err| {
+        eprintln!("could not open Zotero database: {}", err);
+        exit(exitcode::UNAVAILABLE);
+    });
+    let bibtex_conn = Connection::open_with_flags(
+        database_path.join("better-bibtex.sqlite"),
+        OpenFlags::SQLITE_OPEN_READ_ONLY,
+    )
+    .unwrap_or_else(|err| {
+        eprintln!("could not open Better BibTeX database: {}", err);
+        exit(exitcode::UNAVAILABLE);
+    });
 
     let item_count = count_items(&conn).unwrap_or_else(|err| {
         eprintln!("SQL error: {}", err);
         exit(exitcode::IOERR);
     });
-    println!("Loaded Zotero database with {} items", item_count);
+    if cli.debug {
+        println!("Loaded Zotero database with {} items", item_count);
+    }
 
+    let item_id = get_item_id(&bibtex_conn, &cli.citation_key).unwrap_or_else(|err| {
+        eprintln!("could not find item id: {}", err);
+        exit(exitcode::DATAERR);
+    });
+
+    println!("{}", get_field(&conn, item_id, "title").unwrap());
     exit(exitcode::OK);
 }
