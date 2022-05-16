@@ -65,7 +65,7 @@ pub fn get_item_id(bibtex_conn: &Connection, citation_key: &str) -> Result<i64, 
     match &root["data"] {
         Value::Array(data) => {
             for datum in data {
-                let item: BibtexItem = serde_json::from_str(&serde_json::ser::to_string(&datum)?)?;
+                let item: BibtexItem = serde_json::from_value(datum.to_owned())?;
                 if item.citation_key == citation_key {
                     return Ok(item.item_id);
                 }
@@ -118,14 +118,11 @@ pub fn get_field(
     Ok(row)
 }
 
-// Make sure to follow cases in ../tests/mock when writing tests
-#[cfg(test)]
-mod tests {
-    use rusqlite::Batch;
+pub mod test_utils {
+    use rusqlite::{Batch, Connection};
+    use std::error::Error;
 
-    use super::*;
-
-    fn setup_database() -> Result<Connection, Box<dyn Error>> {
+    pub fn setup_database() -> Result<Connection, Box<dyn Error>> {
         let conn = Connection::open_in_memory()?;
         static SQL_INIT: &'static str = include_str!("../tests/mock/zotero.sql");
         let mut batch = Batch::new(&conn, SQL_INIT);
@@ -136,7 +133,7 @@ mod tests {
         return Ok(conn);
     }
 
-    fn setup_bibtex_database() -> Result<Connection, Box<dyn Error>> {
+    pub fn setup_bibtex_database() -> Result<Connection, Box<dyn Error>> {
         let conn = Connection::open_in_memory()?;
         conn.execute(
             "
@@ -154,6 +151,13 @@ mod tests {
 
         Ok(conn)
     }
+}
+
+// Make sure to follow cases in ../tests/mock when writing tests
+#[cfg(test)]
+mod tests {
+    use super::test_utils::*;
+    use super::*;
 
     #[test]
     fn item_count() {
