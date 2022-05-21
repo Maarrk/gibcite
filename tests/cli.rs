@@ -71,3 +71,28 @@ fn mock_key() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
+
+#[test]
+fn missing_key() -> Result<(), Box<dyn Error>> {
+    let (mut cmd, _dir) = setup_command().unwrap();
+    cmd.arg("thisisnotacitationkey");
+
+    cmd.assert().failure();
+
+    Ok(())
+}
+
+#[test]
+fn json_output() -> Result<(), Box<dyn Error>> {
+    let (mut cmd, _dir) = setup_command().unwrap();
+    cmd.arg("kowalskiSampleTitle2022");
+
+    let output = cmd.output().unwrap().stdout;
+    let val: serde_json::Value = serde_json::from_slice(&output).unwrap();
+    let object = val[0].as_object().unwrap();
+
+    assert_eq!("A sample title", object["title"]);
+    assert_eq!("Abstract for a sample article", object["abstract"]);
+
+    Ok(())
+}

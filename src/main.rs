@@ -35,7 +35,7 @@ fn main() {
     }
 
     let conn = Connection::open_with_flags(
-        database_path.join("zotero.sqlite"),
+        database_path.path().join("zotero.sqlite"),
         OpenFlags::SQLITE_OPEN_READ_ONLY,
     )
     .unwrap_or_else(|err| {
@@ -43,7 +43,7 @@ fn main() {
         exit(exitcode::UNAVAILABLE);
     });
     let bibtex_conn = Connection::open_with_flags(
-        database_path.join("better-bibtex.sqlite"),
+        database_path.path().join("better-bibtex.sqlite"),
         OpenFlags::SQLITE_OPEN_READ_ONLY,
     )
     .unwrap_or_else(|err| {

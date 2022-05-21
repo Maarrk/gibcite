@@ -3,11 +3,15 @@ use regex::Regex;
 use rusqlite::Connection;
 use serde::Deserialize;
 use serde_json::Value;
-use std::{error::Error, path::PathBuf};
+use std::{error::Error, fs::copy, path::PathBuf};
+use tempfile::{tempdir, TempDir};
 
 pub mod output;
 
-pub fn get_database_path(input: &Option<PathBuf>) -> Result<Box<PathBuf>, String> {
+/// Copies the SQLite database files into a temporary directory
+///
+/// This allows to read them while they are locked by Zotero
+pub fn get_database_path(input: &Option<PathBuf>) -> Result<TempDir, String> {
     let path_buf = match input {
         Some(path) => path.to_owned(),
         None => {
@@ -32,7 +36,23 @@ pub fn get_database_path(input: &Option<PathBuf>) -> Result<Box<PathBuf>, String
         ));
     }
 
-    Ok(Box::new(path_buf))
+    if let Ok(dir) = tempdir() {
+        if let Err(err) = copy(
+            path_buf.join("zotero.sqlite"),
+            dir.path().join("zotero.sqlite"),
+        ) {
+            return Err(format!("copy error: {:?}", err));
+        }
+        if let Err(err) = copy(
+            path_buf.join("better-bibtex.sqlite"),
+            dir.path().join("better-bibtex.sqlite"),
+        ) {
+            return Err(format!("copy error: {:?}", err));
+        }
+        Ok(dir)
+    } else {
+        Err("could not open temporary dir".into())
+    }
 }
 
 pub fn count_items(conn: &Connection) -> Result<usize, Box<dyn Error>> {
