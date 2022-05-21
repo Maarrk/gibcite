@@ -1,8 +1,11 @@
 use directories::UserDirs;
+use regex::Regex;
 use rusqlite::Connection;
 use serde::Deserialize;
 use serde_json::Value;
 use std::{error::Error, path::PathBuf};
+
+pub mod output;
 
 pub fn get_database_path(input: &Option<PathBuf>) -> Result<Box<PathBuf>, String> {
     let path_buf = match input {
@@ -118,6 +121,30 @@ pub fn get_field(
     Ok(row)
 }
 
+pub fn get_date_parts(
+    conn: &Connection,
+    item_id: i64,
+) -> Result<(i32, Option<i32>, Option<i32>), Box<dyn Error>> {
+    let re = Regex::new(r"^(\d{4})-(\d{2})-(\d{2})")?;
+    let date_text = get_field(&conn, item_id, "date")?;
+    if let Some(caps) = re.captures(&date_text) {
+        // Parsing or index access won't panic since it matched the regex
+        let year = caps[1].parse().unwrap();
+        let month = caps[2].parse().unwrap();
+        let day = caps[3].parse().unwrap();
+        Ok((
+            year,
+            if month != 0 { Some(month) } else { None },
+            if day != 0 { Some(day) } else { None },
+        ))
+    } else {
+        Err(format!(
+            "didn't match '{}' to expected YYYY-mm-dd format",
+            date_text
+        ))?
+    }
+}
+
 pub mod test_utils {
     use rusqlite::{Batch, Connection};
     use std::error::Error;
@@ -199,5 +226,42 @@ mod tests {
             "Abstract for a sample article".to_string(),
             get_field(&conn, 1, "abstractNote").unwrap()
         );
+    }
+
+    #[test]
+    fn mock_date() {
+        let conn = setup_database().unwrap();
+        assert_eq!(
+            (2022, Some(05), Some(15)),
+            get_date_parts(&conn, 1).unwrap()
+        );
+    }
+
+    #[test]
+    fn missing_day() {
+        let conn = setup_database().unwrap();
+        conn.execute(
+            "
+            UPDATE itemDataValues
+            SET value = '2022-05-00'
+            WHERE valueID = 3;",
+            [],
+        )
+        .unwrap();
+        assert_eq!((2022, Some(05), None), get_date_parts(&conn, 1).unwrap());
+    }
+
+    #[test]
+    fn missing_month() {
+        let conn = setup_database().unwrap();
+        conn.execute(
+            "
+            UPDATE itemDataValues
+            SET value = '2022-00-00'
+            WHERE valueID = 3;",
+            [],
+        )
+        .unwrap();
+        assert_eq!((2022, None, None), get_date_parts(&conn, 1).unwrap());
     }
 }

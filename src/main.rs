@@ -3,7 +3,8 @@ use rusqlite::{Connection, OpenFlags};
 use std::path::PathBuf;
 use std::process::exit;
 
-use gibcite::{count_items, get_database_path, get_field, get_item_id};
+use gibcite::output::csl_json;
+use gibcite::{count_items, get_database_path, get_item_id};
 
 #[derive(Debug, Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -63,6 +64,12 @@ fn main() {
         exit(exitcode::DATAERR);
     });
 
-    println!("{}", get_field(&conn, item_id, "title").unwrap());
+    println!(
+        "{}",
+        csl_json(&conn, &cli.citation_key, item_id).unwrap_or_else(|err| {
+            eprintln!("could not output CSL: {}", err);
+            exit(exitcode::SOFTWARE);
+        })
+    );
     exit(exitcode::OK);
 }
