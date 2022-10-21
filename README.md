@@ -9,4 +9,4 @@ The data is returned in a [CSL JSON](https://citationstyles.org/) format, curren
 - Issue date
 - Abstract
 
-This program was originally developed for using with [Dendron](https://www.dendron.so), you can see [instructions on how to use it this way](./dendron). But there is nothing dendron-specific to it, might be useful for other integrations.
+This program was originally developed for using with [Dendron](https://www.dendron.so). Now this is mostly obsolete, as the same thing [can be done with just the hook](https://gist.github.com/Maarrk/01172c1689897979b944c05f8ca948b3) since [this PR](https://github.com/dendronhq/dendron/pull/3001).
